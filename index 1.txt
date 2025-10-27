@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactive Quiz App</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --correct:#16a34a; --wrong:#ef4444;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(180deg,#071021 0%, #081322 100%); color:#e6eef6; -webkit-font-smoothing:antialiased;
+      display:flex; align-items:center; justify-content:center; padding:28px;
+    }
+
+    .app{
+      width:100%; max-width:920px; background:linear-gradient(180deg,var(--card), rgba(11,18,32,0.9)); border-radius:16px; padding:22px; box-shadow:0 10px 30px rgba(2,6,23,0.6);
+      display:grid; grid-template-columns: 1fr 300px; gap:18px; align-items:start;
+    }
+
+    header{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; gap:12px}
+    header h1{font-size:20px; margin:0}
+    header .meta{color:var(--muted); font-size:13px}
+
+    .card{background:var(--glass); border-radius:12px; padding:16px}
+
+    .main{padding:12px}
+    .question{font-size:18px; margin-bottom:12px}
+
+    .choices{display:grid; gap:10px}
+    .choice{
+      padding:12px; border-radius:10px; background:transparent; border:1px solid rgba(255,255,255,0.04); cursor:pointer; transition:all 180ms; text-align:left;
+    }
+    .choice:hover{transform:translateY(-3px)}
+    .choice.selected{border-color:rgba(6,182,212,0.9); box-shadow:0 6px 18px rgba(6,182,212,0.06)}
+    .choice.correct{background:rgba(22,163,74,0.12); border-color:rgba(22,163,74,0.7)}
+    .choice.wrong{background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.75)}
+
+    .controls{display:flex; gap:10px; margin-top:14px}
+    button{background:var(--accent); color:#042027; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600}
+    button.ghost{background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.04)}
+
+    .sidebar{display:flex; flex-direction:column; gap:12px}
+    .summary{display:flex; gap:12px; align-items:center; justify-content:space-between}
+    .progress{height:10px; background:rgba(255,255,255,0.04); border-radius:999px; overflow:hidden}
+    .progress > i{display:block; height:100%; background:linear-gradient(90deg,var(--accent), #3b82f6)}
+
+    .timer{font-weight:700}
+    .small{font-size:13px; color:var(--muted)}
+
+    .review-list{display:grid; gap:8px; max-height:360px; overflow:auto; padding-right:6px}
+    .pill{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,0.02); cursor:pointer; border:1px solid rgba(255,255,255,0.03)}
+    .pill.answered{border-color:rgba(6,182,212,0.6)}
+
+    .result{grid-column:1/-1; padding:18px; margin-top:6px}
+    .hide{display:none}
+
+    footer{grid-column:1/-1; color:var(--muted); font-size:13px; display:flex; justify-content:space-between; align-items:center}
+
+    @media(max-width:880px){
+      .app{grid-template-columns:1fr;}
+      .sidebar{order:2}
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <header>
+      <div>
+        <h1>Interactive Quiz App</h1>
+        <div class="meta">Test your knowledge — responsive, timed, with review</div>
+      </div>
+      <div class="meta">Questions: <span id="totalCount">0</span> • Time per quiz: <span id="totalTime">0</span>s</div>
+    </header>
+
+    <section class="card main">
+      <div class="question" id="question">Loading...</div>
+      <div class="choices" id="choices"></div>
+
+      <div class="controls">
+        <button id="prevBtn" class="ghost">Previous</button>
+        <button id="nextBtn" class="ghost">Next</button>
+        <button id="submitBtn">Submit Quiz</button>
+        <div style="flex:1"></div>
+        <div class="small">Selected: <span id="selectedCount">0</span></div>
+      </div>
+
+      <div class="small" style="margin-top:10px">Tip: Click an option to select it. Use "Submit Quiz" when finished.</div>
+
+    </section>
+
+    <aside class="sidebar">
+      <div class="card summary">
+        <div>
+          <div class="small">Progress</div>
+          <div class="progress" style="margin-top:6px"><i id="progressBar" style="width:0%"></i></div>
+        </div>
+        <div style="text-align:right">
+          <div class="small">Time left</div>
+          <div class="timer" id="timer">--:--</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="small" style="margin-bottom:8px">Review/Navigate</div>
+        <div class="review-list" id="reviewList"></div>
+      </div>
+
+      <div class="card">
+        <div class="small">Quiz Options</div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <button id="shuffleBtn" class="ghost">Shuffle Qs</button>
+          <button id="resetBtn" class="ghost">Reset</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="result card hide" id="resultCard">
+      <h3>Your Results</h3>
+      <p id="scoreText"></p>
+      <div id="breakdown"></div>
+    </section>
+
+    <footer>
+      <div class="small">Built with plain HTML/CSS/JS • Export or embed anywhere</div>
+      <div class="small">Made for teaching & demo</div>
+    </footer>
+  </main>
+
+  <script>
+    // =========================
+    // Simple interactive quiz app
+    // - Single-file app
+    // - Features: per-quiz timer, navigation, review, shuffle, reset
+    // =========================
+
+    const QUESTIONS = [
+      {id:1, q:"Which language runs in a web browser?", choices:["Java","C","Python","JavaScript"], answer:3},
+      {id:2, q:"What does CSS stand for?", choices:["Central Style Sheets","Cascading Style Sheets","Cascading Simple Sheets","Computer Style Sheets"], answer:1},
+      {id:3, q:"What does HTML stand for?", choices:["HyperText Markup Language","Hyperlinks and Text Markup Language","Home Tool Markup Language","Hyper Tool Markup Language"], answer:0},
+      {id:4, q:"Which company developed the React library?", choices:["Google","Facebook (Meta)","Microsoft","Twitter"], answer:1},
+      {id:5, q:"Which HTTP status code means 'Not Found'?", choices:["200","301","404","500"], answer:2}
+    ];
+
+    // config
+    const TIME_PER_QUESTION = 18; // seconds per question
+
+    // state
+    let state = {
+      questions: [],
+      current: 0,
+      answers: {}, // qid -> index
+      timeLeft: 0,
+      timerInterval: null,
+      startedAt: null,
+      finished: false
+    };
+
+    // elements
+    const el = id=>document.getElementById(id);
+    const questionEl = el('question');
+    const choicesEl = el('choices');
+    const prevBtn = el('prevBtn');
+    const nextBtn = el('nextBtn');
+    const submitBtn = el('submitBtn');
+    const totalCount = el('totalCount');
+    const totalTime = el('totalTime');
+    const timerEl = el('timer');
+    const progressBar = el('progressBar');
+    const reviewList = el('reviewList');
+    const selectedCount = el('selectedCount');
+    const resultCard = el('resultCard');
+    const scoreText = el('scoreText');
+    const breakdown = el('breakdown');
+    const shuffleBtn = el('shuffleBtn');
+    const resetBtn = el('resetBtn');
+
+    // utilities
+    function secsToMMSS(s){const mm=Math.floor(s/60).toString().padStart(2,'0'); const ss=(s%60).toString().padStart(2,'0'); return mm+':'+ss}
+
+    function startQuiz(questions){
+      state.questions = questions.map((q,i)=>({...q, idx:i}));
+      state.current = 0; state.answers={}; state.finished=false;
+      state.timeLeft = TIME_PER_QUESTION * state.questions.length;
+      totalCount.textContent = state.questions.length;
+      totalTime.textContent = state.timeLeft;
+      renderCurrent(); renderReview(); updateProgress();
+      if(state.timerInterval) clearInterval(state.timerInterval);
+      state.startedAt = Date.now();
+      state.timerInterval = setInterval(()=>{
+        state.timeLeft -=1; updateTimer(); if(state.timeLeft<=0){ clearInterval(state.timerInterval); finishQuiz(); }
+      }, 1000);
+      updateTimer();
+    }
+
+    function updateTimer(){ timerEl.textContent = secsToMMSS(state.timeLeft); }
+
+    function renderCurrent(){
+      const q = state.questions[state.current];
+      if(!q) return;
+      questionEl.textContent = `Q${state.current+1}. ${q.q}`;
+      choicesEl.innerHTML='';
+      q.choices.forEach((c, i)=>{
+        const btn = document.createElement('button'); btn.className='choice'; btn.type='button'; btn.innerHTML = `<div>${c}</div>`;
+        btn.addEventListener('click', ()=>selectAnswer(q.id, i));
+        choicesEl.appendChild(btn);
+      });
+      highlightSelection();
+      prevBtn.disabled = state.current===0;
+      nextBtn.disabled = state.current===state.questions.length-1;
+      selectedCount.textContent = Object.keys(state.answers).length;
+      updateProgress();
+    }
+
+    function selectAnswer(qid, choiceIdx){
+      if(state.finished) return;
+      state.answers[qid] = choiceIdx;
+      highlightSelection(); renderReview();
+    }
+
+    function highlightSelection(){
+      const q = state.questions[state.current];
+      const children = Array.from(choicesEl.children);
+      children.forEach((btn, i)=>{
+        btn.classList.remove('selected','correct','wrong');
+        if(state.answers[q.id]===i) btn.classList.add('selected');
+      });
+    }
+
+    function goto(index){
+      if(index<0 || index>=state.questions.length) return;
+      state.current = index; renderCurrent();
+    }
+
+    function updateProgress(){
+      const done = Object.keys(state.answers).length; const total = state.questions.length;
+      const pct = total ? Math.round((done/total)*100) : 0;
+      progressBar.style.width = pct + '%';
+    }
+
+    function renderReview(){
+      reviewList.innerHTML='';
+      state.questions.forEach((q,i)=>{
+        const b = document.createElement('button'); b.className='pill'; b.textContent = i+1;
+        if(state.answers[q.id]!==undefined) b.classList.add('answered');
+        b.addEventListener('click', ()=>{ goto(i); });
+        reviewList.appendChild(b);
+      });
+      selectedCount.textContent = Object.keys(state.answers).length;
+    }
+
+    function finishQuiz(){
+      state.finished = true;
+      if(state.timerInterval) clearInterval(state.timerInterval);
+      // grade
+      let correct=0;
+      const total = state.questions.length;
+      breakdown.innerHTML='';
+      state.questions.forEach((q, i)=>{
+        const user = state.answers[q.id];
+        const isCorrect = user===q.answer;
+        if(isCorrect) correct++;
+        const row = document.createElement('div'); row.style.marginBottom='8px';
+        const title = document.createElement('div'); title.innerHTML = `<strong>Q${i+1}.</strong> ${q.q}`;
+        const your = document.createElement('div'); your.className='small'; your.textContent = `Your answer: ${user===undefined? '—' : q.choices[user] }`;
+        const ans = document.createElement('div'); ans.className='small'; ans.textContent = `Correct answer: ${q.choices[q.answer]}`;
+        if(isCorrect){ your.style.color='var(--correct)'; }
+        else{ your.style.color='var(--wrong)'; }
+        row.appendChild(title); row.appendChild(your); row.appendChild(ans);
+        breakdown.appendChild(row);
+      });
+
+      scoreText.textContent = `Score: ${correct} / ${total} (${Math.round((correct/total)*100)}%)`;
+      resultCard.classList.remove('hide');
+
+      // show correct/wrong on current view choices
+      const q = state.questions[state.current];
+      if(q){
+        const children = Array.from(choicesEl.children);
+        children.forEach((btn, i)=>{
+          btn.classList.remove('selected');
+          if(i===q.answer) btn.classList.add('correct');
+          else if(state.answers[q.id]===i) btn.classList.add('wrong');
+        });
+      }
+    }
+
+    // shuffle util
+    function shuffleArray(arr){
+      for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]] }
+      return arr;
+    }
+
+    // public controls
+    prevBtn.addEventListener('click', ()=>{ goto(state.current-1); });
+    nextBtn.addEventListener('click', ()=>{ goto(state.current+1); });
+    submitBtn.addEventListener('click', ()=>{ if(confirm('Submit quiz now?')) finishQuiz(); });
+    shuffleBtn.addEventListener('click', ()=>{ state.questions = shuffleArray(state.questions); startQuiz(state.questions); });
+    resetBtn.addEventListener('click', ()=>{ if(confirm('Reset progress and restart quiz?')) startQuiz(QUESTIONS); });
+
+    // allow keyboard navigation and selection (1-9)
+    document.addEventListener('keydown', (e)=>{
+      if(e.key==='ArrowLeft') goto(state.current-1);
+      if(e.key==='ArrowRight') goto(state.current+1);
+      if(e.key>='1' && e.key<='9'){
+        const idx = parseInt(e.key,10)-1; const q = state.questions[state.current]; if(q && idx<q.choices.length) selectAnswer(q.id, idx);
+      }
+      if(e.key==='Enter' && !state.finished){ finishQuiz(); }
+    });
+
+    // initialize
+    startQuiz(QUESTIONS);
+
+  </script>
+</body>
+</html>
